@@ -1,25 +1,45 @@
 import logging.config
 
 from dependency_injector import containers, providers
-from services.people import PeopleService
+from services.people_service import PeopleService
 from repository.people import PeopleRepository
+from database import SessionLocal, engine
+from models import People
+
+from fastapi import Depends
+
 
 class Container(containers.DeclarativeContainer):
-  wiring_config = containers.WiringConfiguration(modules=["endpoints"])
-  config = providers.Configuration(yaml_files=["config.yml"])
-  
-  logging = providers.Resource(
-      logging.config.fileConfig,
-      fname="logging.ini",
-  )
+    # Dependency
+    def get_db(self):
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
 
-  people_repository = providers.Factory(
+    People.Base.metadata.create_all(bind=engine)
+
+    wiring_config = containers.WiringConfiguration(modules=["endpoints"])
+    config = providers.Configuration(yaml_files=["config.yml"])
+
+    logging = providers.Resource(
+       logging.config.fileConfig,
+       fname="logging.ini",
+    )
+
+    people_repository = providers.Factory(
       PeopleRepository
-  )
+    )
 
-  people_service = providers.Factory(
-    PeopleService,
-    people_repository=people_repository
-  )
+    db = providers.Factory(
+        SessionLocal
+    )
+
+    people_service = providers.Factory(
+      PeopleService,
+      people_repository=people_repository,
+      db=db,
+    )
 
 
